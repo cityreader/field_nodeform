@@ -1,0 +1,9 @@
+name = Field Node Form 
+description = "Provides node edit form as a field."
+core = 7.x
+dependencies[] = field
+dependencies[] = diff (3.x)
+
+files[] = field_nodeform.module
+
+package = Fields

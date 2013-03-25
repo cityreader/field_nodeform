@@ -1,0 +1,149 @@
+<?php
+
+/**
+ * Implements hook_field_info()
+ */
+function field_nodeform_field_info() {
+  return array(
+    'field_nodeform' => array(
+      'label' => t('Node edit form'),
+      'description' => t('This field provides node edit form.'),
+//      'settings' => array('max_length' => 255),
+//      'instance_settings' => array('text_processing' => 0),
+      'default_widget' => 'field_nodeform_widget',
+      'default_formatter' => 'field_nodeform_formatter',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_is_empty()
+ */
+function field_nodeform_field_is_empty($item, $field) {
+//  if (empty($item['value']) && (string) $item['value'] !== '0') {
+//    return TRUE;
+//  }
+//  return FALSE;
+}
+
+/**
+ * Implements hook_field_widget_info()
+ */
+function field_nodeform_field_widget_info() {
+  return array(
+    'field_nodeform_widget' => array(
+      'label' => t('Default'),
+      'field types' => array('field_nodeform'),
+      'settings' => array(
+        'enabled_fields' => array(),
+      ),
+//      'behaviors' => array(
+//        'multiple values' => FIELD_BEHAVIOR_DEFAULT,
+//        'default value' => FIELD_BEHAVIOR_DEFAULT,
+//      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_settings_form().
+ */
+function field_nodeform_field_widget_settings_form($field, $instance) {
+  $widget = $instance['widget'];
+  $settings = $widget['settings'];
+
+  $options = array();
+
+  // For exmaple: comment_node_task
+  $bundle_name = substr($instance['bundle'], 13);
+
+  $type = node_type_load($bundle_name);
+
+  if ($type->has_title) {
+      $options['title'] = check_plain($type->title_label);
+  }
+
+  $fields_info = field_info_instances('node', $bundle_name);
+
+  foreach ($fields_info as $field_name => $value) {
+    $options[$field_name] = $value['label'];
+  }
+
+dpm($field);
+dpm($instance);
+
+  $form['enabled_fields'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Enabled fields'),
+    '#options' => $options,
+    '#default_value' => $settings['enabled_fields'],
+    '#description' => t('Select node fields you want to display in the comment form.'),
+//    '#access' => file_progress_implementation(),
+  );
+
+  return $form;
+}
+
+/**
+ * Implements hook_field_widget_form()
+ */
+function field_nodeform_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  if (!isset($form['#node'])) {
+    return;
+  }
+
+  $widget = $instance['widget'];
+  $settings = $widget['settings'];
+
+  dpm($form);
+  dpm($form_state);
+  dpm($field);
+  dpm($instance);
+  dpm($items);
+
+  $node = $form['#node'];
+
+  $type = node_type_get_type($node);
+
+  if ($type->has_title) {
+    $element['title'] = array(
+      '#type' => 'textfield',
+      '#title' => check_plain($type->title_label),
+      '#required' => TRUE,
+      '#default_value' => $node->title,
+      '#maxlength' => 255,
+      '#weight' => -5,
+    );
+  }
+
+  field_attach_form('node', $node, $element, $form_state);
+
+  $enabled_fields = array_filter($settings['enabled_fields']);
+
+  foreach ($settings['enabled_fields'] as $field_name => $value) {
+    if (empty($value)) {
+      $element[$field_name]['#access'] = FALSE;
+    }
+  }
+
+  dpm($element);
+
+
+//  $element += array(
+//    '#type' => $instance['widget']['type'],
+//    '#default_value' => isset($items[$delta]) ? $items[$delta] : '',
+//  );
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_info()
+ */
+function hook_field_formatter_info() {
+  return array(
+    'field_nodeform_formatter' => array(
+      'label' => t('Default'),
+      'field types' => array('field_nodeform'),
+    ),
+  );
+}
