@@ -230,6 +230,8 @@ function field_nodeform_field_insert($entity_type, $entity, $field, $instance, $
           $node->$field_name = $field_value;
         }
 
+        $node->revision = 1;
+
         $values = $item;
         $values['op'] = t('Save');
         $values['revision'] = 1;
