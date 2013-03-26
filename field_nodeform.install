@@ -1,0 +1,26 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the field_nodeform module.
+ */
+
+/**
+ * Implements hook_field_schema().
+ */
+function field_nodeform_field_schema($field) {
+  return array(
+    'columns' => array(
+      'old_vid' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'unsigned' => TRUE,
+      ),
+      'new_vid' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'unsigned' => TRUE,
+      ),
+    ),
+  );
+}

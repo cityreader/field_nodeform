@@ -17,16 +17,6 @@ function field_nodeform_field_info() {
 }
 
 /**
- * Implements hook_field_is_empty()
- */
-function field_nodeform_field_is_empty($item, $field) {
-//  if (empty($item['value']) && (string) $item['value'] !== '0') {
-//    return TRUE;
-//  }
-//  return FALSE;
-}
-
-/**
  * Implements hook_field_widget_info()
  */
 function field_nodeform_field_widget_info() {
@@ -37,10 +27,10 @@ function field_nodeform_field_widget_info() {
       'settings' => array(
         'enabled_fields' => array(),
       ),
-//      'behaviors' => array(
-//        'multiple values' => FIELD_BEHAVIOR_DEFAULT,
-//        'default value' => FIELD_BEHAVIOR_DEFAULT,
-//      ),
+      'behaviors' => array(
+//        'multiple values' => FIELD_BEHAVIOR_CUSTOM,
+        'default value' => FIELD_BEHAVIOR_NONE,
+      ),
     ),
   );
 }
@@ -69,8 +59,8 @@ function field_nodeform_field_widget_settings_form($field, $instance) {
     $options[$field_name] = $value['label'];
   }
 
-dpm($field);
-dpm($instance);
+//dpm($field);
+//dpm($instance);
 
   $form['enabled_fields'] = array(
     '#type' => 'checkboxes',
@@ -95,13 +85,23 @@ function field_nodeform_field_widget_form(&$form, &$form_state, $field, $instanc
   $widget = $instance['widget'];
   $settings = $widget['settings'];
 
-  dpm($form);
-  dpm($form_state);
-  dpm($field);
-  dpm($instance);
-  dpm($items);
+//  dpm($form);
+//  dpm($form_state);
+//  dpm($field);
+//  dpm($instance);
+//  dpm($items);
+
+  $element += array(
+    '#tree' => TRUE,
+    '#parents' => array($element['#field_name'], $langcode, $delta),
+  );
 
   $node = $form['#node'];
+
+  $element['nid'] = array(
+    '#type' => 'value',
+    '#value' => $node->nid,
+  );
 
   $type = node_type_get_type($node);
 
@@ -122,24 +122,149 @@ function field_nodeform_field_widget_form(&$form, &$form_state, $field, $instanc
 
   foreach ($settings['enabled_fields'] as $field_name => $value) {
     if (empty($value)) {
-      $element[$field_name]['#access'] = FALSE;
+      unset($element[$field_name]);
     }
   }
 
-  dpm($element);
-
-
-//  $element += array(
-//    '#type' => $instance['widget']['type'],
-//    '#default_value' => isset($items[$delta]) ? $items[$delta] : '',
-//  );
   return $element;
+}
+
+
+/**
+ * Implements hook_field_is_empty()
+ */
+function field_nodeform_field_is_empty($item, $field) {
+  $cache = &drupal_static(__FUNCTION__);
+
+  $nid = $item['nid'];
+  unset($item['nid']);
+
+  $node = node_load($nid);
+  $language = $node->language;
+
+  $node_clone = clone $node;
+
+  $is_empty = TRUE;
+
+  foreach ($item as $field_name=>$field_value) {
+    if (is_array($field_value)) {
+      foreach ($field_value[$language] as $delta=>$single_value) {
+        $node_field = $node->$field_name;
+
+        $value_keys = array_keys($single_value);
+
+        foreach ($value_keys as $key) {
+          if ($single_value[$key] != $node_field[$language][$delta][$key]) {
+            $is_empty = FALSE;
+//              $node_clone_field =& $node_clone->$field_name;
+//              $node_clone_field[$language][$delta][$key] = $single_value[$key];
+            break;
+          }
+        }
+      }
+//      
+    }
+    else if (is_string($field_value)) {
+      if ($node->$field_name != $field_value) {
+        $is_empty = FALSE;
+//        $node_clone->$field_name = $field_value;
+        break;
+      }
+    }
+    
+  }
+
+  if (!$is_empty) {
+    $cache[$nid] = FALSE;
+  }
+
+//  module_load_include('inc', 'diff', 'diff.pages');
+//  $context = array(
+//    'entity_type' => 'node',
+//    'states' => array('raw'),
+//    'view_mode' => 'diff_standard',
+//  );
+//  $node_diffs = diff_compare_entities($node, $node_clone, $context);
+
+  return $is_empty;
+}
+
+/**
+ * Implements hook_field_validate()
+ */
+function field_nodeform_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+//  foreach ($items as $delta => $item) {
+//    if (!empty($item['value'])) {
+//      if (!empty($field['settings']['max_length']) && drupal_strlen($item['value']) > $field['settings']['max_length']) {
+//        $errors[$field['field_name']][$langcode][$delta][] = array(
+//          'error' => 'text_max_length',
+//          'message' => t('%name: the value may not be longer than %max characters.', array('%name' => $instance['label'], '%max' => $field['settings']['max_length'])),
+//        );
+//      }
+//    }
+//  }
+}
+
+/**
+ * Implements hook_field_insert()
+ *
+ * todo check user permission to update node
+ */
+function field_nodeform_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  global $user;
+
+  if ($field['type'] == 'field_nodeform') {
+//    dpm($items);
+    $field_is_empty = &drupal_static('field_nodeform_field_is_empty');
+    // Let PHP round the value to ensure consistent behavior across storage
+    // backends.
+    foreach ($items as $delta => &$item) {
+      if (isset($field_is_empty[$item['nid']]) && $field_is_empty[$item['nid']] === FALSE) {
+
+        $node = node_load($item['nid'], NULL, TRUE);
+        $old_vid = $node->vid;
+        $node->uid = $user->uid;
+        //$node->log = '';
+
+        foreach ($item as $field_name=>$field_value) {
+          $node->$field_name = $field_value;
+        }
+
+        $values = $item;
+        $values['op'] = t('Save');
+        $values['revision'] = 1;
+
+        $form_state = array(
+          'values' => $values,
+        );
+
+
+//dpm($form_state);
+//dpm($node);
+        module_load_include('inc', 'node', 'node.pages');
+//        drupal_form_submit("{$node->type}_node_form", $form_state, $node);
+
+        $node = node_submit($node); // Prepare node for a submit
+        node_save($node);
+
+//dpm($form_state);
+//dpm($node);
+//throw new Exception('print $node');
+        $new_vid = $node->vid;
+
+        $item = array(
+          'old_vid' => $old_vid,
+          'new_vid' => $new_vid,
+        );
+      }
+    }
+  }
 }
 
 /**
  * Implements hook_field_formatter_info()
  */
-function hook_field_formatter_info() {
+function field_nodeform_field_formatter_info() {
   return array(
     'field_nodeform_formatter' => array(
       'label' => t('Default'),
