@@ -134,7 +134,7 @@ function field_nodeform_field_widget_form(&$form, &$form_state, $field, $instanc
  * Implements hook_field_is_empty()
  */
 function field_nodeform_field_is_empty($item, $field) {
-  $cache = &drupal_static(__FUNCTION__);
+  $nodes_update_cache = &drupal_static('field_nodeform_nodes_update');
 
   $nid = $item['nid'];
   unset($item['nid']);
@@ -174,9 +174,7 @@ function field_nodeform_field_is_empty($item, $field) {
     
   }
 
-  if (!$is_empty) {
-    $cache[$nid] = FALSE;
-  }
+  $nodes_update_cache[$nid] = $is_empty ? FALSE : TRUE;
 
 //  module_load_include('inc', 'diff', 'diff.pages');
 //  $context = array(
@@ -207,23 +205,22 @@ function field_nodeform_field_validate($entity_type, $entity, $field, $instance,
 
 /**
  * Implements hook_field_insert()
- *
+ * 
  * todo check user permission to update node
  */
 function field_nodeform_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
-  global $user;
-
   if ($field['type'] == 'field_nodeform') {
 //    dpm($items);
-    $field_is_empty = &drupal_static('field_nodeform_field_is_empty');
+    $nodes_update_cache = &drupal_static('field_nodeform_nodes_update');
     // Let PHP round the value to ensure consistent behavior across storage
     // backends.
     foreach ($items as $delta => &$item) {
-      if (isset($field_is_empty[$item['nid']]) && $field_is_empty[$item['nid']] === FALSE) {
+      if (isset($nodes_update_cache[$item['nid']]) && $nodes_update_cache[$item['nid']] === TRUE) {
 
         $node = node_load($item['nid'], NULL, TRUE);
         $old_vid = $node->vid;
-        $node->uid = $user->uid;
+		
+
         //$node->log = '';
 
         foreach ($item as $field_name=>$field_value) {
@@ -232,26 +229,27 @@ function field_nodeform_field_insert($entity_type, $entity, $field, $instance, $
 
         $node->revision = 1;
 
-        $values = $item;
-        $values['op'] = t('Save');
-        $values['revision'] = 1;
-
-        $form_state = array(
-          'values' => $values,
-        );
+        // $values = array();
+        // $values['op'] = t('Save');
+        // $values['revision'] = 1;
+// 
+        // $form_state = array(
+          // 'values' => $values,
+          // 'node' => $node,
+        // );
 
 
 //dpm($form_state);
 //dpm($node);
-        module_load_include('inc', 'node', 'node.pages');
+//        module_load_include('inc', 'node', 'node.pages');
 //        drupal_form_submit("{$node->type}_node_form", $form_state, $node);
 
-        $node = node_submit($node); // Prepare node for a submit
+        // $node = node_submit($node); // Prepare node for a submit
         node_save($node);
 
 //dpm($form_state);
-//dpm($node);
-//throw new Exception('print $node');
+// dpm($node);
+// throw new Exception('print $node');
         $new_vid = $node->vid;
 
         $item = array(
